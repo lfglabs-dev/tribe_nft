@@ -114,7 +114,8 @@ func tokenURI{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     alloc_locals;
 
     let (arr_len, arr) = read_uri_base(0);
-    let (size) = append_number_ascii(tokenId, arr + arr_len);
+    let (_, token_level) = unsigned_div_rem(tokenId.low, 100);
+    let (size) = append_number_ascii(Uint256(token_level, 0), arr + arr_len);
 
     return (arr_len + size, arr);
 }
