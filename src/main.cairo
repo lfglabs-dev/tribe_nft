@@ -5,7 +5,10 @@
 from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.signature import verify_ecdsa_signature
-from starkware.starknet.common.syscalls import get_caller_address
+from starkware.starknet.common.syscalls import get_caller_address, get_block_timestamp
+from starkware.cairo.common.math import unsigned_div_rem, assert_not_zero
+from starkware.cairo.common.math_cmp import is_le
+from starkware.cairo.common.bool import TRUE
 
 from openzeppelin.access.ownable.library import Ownable
 from openzeppelin.introspection.erc165.library import ERC165
@@ -14,19 +17,26 @@ from openzeppelin.token.erc721.library import ERC721
 from openzeppelin.upgrades.library import Proxy
 
 from src.token_uri import append_number_ascii, set_uri_base, read_uri_base
+from src.interface.naming import Naming
+
 //
 // Constructor
 //
 
 @external
 func initializer{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    proxy_admin: felt, whitelisting_key: felt, uri_base_len: felt, uri_base: felt*
+    proxy_admin: felt, 
+    uri_base_len: felt, 
+    uri_base: felt*, 
+    naming_address: felt,
+    expiry: felt
 ) {
     Ownable.initializer(proxy_admin);
     Proxy.initializer(proxy_admin);
     ERC721.initializer('Stark Tribe NFT', 'TRB');
     set_uri_base(uri_base_len, uri_base);
-    _whitelisting_key.write(whitelisting_key);
+    naming_contract.write(naming_address);
+    min_expiry.write(expiry);
 
     return ();
 }
@@ -36,11 +46,15 @@ func initializer{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr
 //
 
 @storage_var
-func _whitelisting_key() -> (whitelisting_key: felt) {
+func _blacklisted(domain: felt, level: felt) -> (is_blacklisted: felt) {
 }
 
 @storage_var
-func _blacklisted_whitelist(domain: felt) -> (is_blacklisted: felt) {
+func naming_contract() -> (address: felt) {
+}
+
+@storage_var
+func min_expiry() -> (timestamp: felt) {
 }
 
 //
@@ -156,24 +170,62 @@ func safeTransferFrom{pedersen_ptr: HashBuiltin*, syscall_ptr: felt*, range_chec
 
 @external
 func mint{pedersen_ptr: HashBuiltin*, syscall_ptr: felt*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*}(
-    tokenId: Uint256, whitelist_sig: (felt, felt), domain: felt
+    tokenId: Uint256, domain: felt
 ) {
+    alloc_locals;
     Pausable.assert_not_paused();
 
-    let (whitelisting_key) = _whitelisting_key.read();
-    with_attr error_message("Your whitelist is not valid") {
-        verify_ecdsa_signature(domain, whitelisting_key, whitelist_sig[0], whitelist_sig[1]);
-    }
+    let (_, local token_level) = unsigned_div_rem(tokenId.low, 100);
 
     with_attr error_message("Your already minted with this domain") {
-        let (is_blacklisted) = _blacklisted_whitelist.read(domain);
+        let (is_blacklisted) = _blacklisted.read(domain, token_level);
         assert is_blacklisted = 0;
     }
 
-    let (caller) = get_caller_address();
-    ERC721._mint(caller, tokenId);
-    _blacklisted_whitelist.write(domain, 1);
+    let (local caller) = get_caller_address();
+    _assert_token_level(caller, token_level);
 
+    ERC721._mint(caller, tokenId);
+    _blacklisted.write(domain, token_level, 1);
+
+    return ();
+}
+
+func _assert_token_level{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    caller: felt, token_level: felt
+) {
+    alloc_locals;
+    let (contract) = naming_contract.read();
+    let (domain_len, domain) = Naming.address_to_domain(contract, caller);
+    
+    with_attr error_message("You don't own a domain or a subdomain, you cannot mint an NFT") {
+        assert_not_zero(domain_len);
+    }
+
+    if (token_level == 1) {
+        with_attr error_message("You don't own a subdomain, you cannot mint an NFT of level 1") {
+            assert is_le(1, domain_len) = TRUE;
+        }
+        return ();
+    }
+
+    if (token_level == 2) {
+        with_attr error_message("You don't own a root domain, you cannot mint an NFT of level 2") {
+            assert domain_len = 1;
+        }
+        return ();
+    }
+
+    if (token_level == 3) {
+        let (_min_expiry) = min_expiry.read();
+        let (expiry) = Naming.domain_to_expiry(contract, domain_len, domain);
+        let (block_timestamp) = get_block_timestamp();
+        with_attr error_message("Your domain expiry is less than 3 years, you cannot mint an NFT of level 3") {
+            assert domain_len = 1;
+            assert is_le(_min_expiry, expiry) = TRUE;
+        }
+        return ();
+    }
     return ();
 }
 
