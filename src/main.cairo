@@ -6,10 +6,9 @@ from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.signature import verify_ecdsa_signature
 from starkware.starknet.common.syscalls import get_caller_address, get_block_timestamp
-from starkware.cairo.common.math import unsigned_div_rem, assert_not_zero
-from starkware.cairo.common.math_cmp import is_le
-from starkware.cairo.common.bool import TRUE
+from starkware.cairo.common.math import assert_not_zero, assert_le, assert_lt_felt
 from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.uint256 import uint256_unsigned_div_rem
 
 from openzeppelin.access.ownable.library import Ownable
 from openzeppelin.introspection.erc165.library import ERC165
@@ -114,8 +113,8 @@ func tokenURI{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     alloc_locals;
 
     let (arr_len, arr) = read_uri_base(0);
-    let (_, token_level) = unsigned_div_rem(tokenId.low, 100);
-    let (size) = append_number_ascii(Uint256(token_level, 0), arr + arr_len);
+    let (_, token_level) = uint256_unsigned_div_rem(tokenId, Uint256(100, 0));
+    let (size) = append_number_ascii(token_level, arr + arr_len);
 
     return (arr_len + size, arr);
 }
@@ -179,23 +178,25 @@ func mint{pedersen_ptr: HashBuiltin*, syscall_ptr: felt*, range_check_ptr, ecdsa
 
     let (contract) = naming_contract.read();
     let (local caller) = get_caller_address();
+
     let (domain_len, domain) = Naming.address_to_domain(contract, caller);
-    let (hashed_domain) = _hash_domain(domain_len, domain);
-    let (_, local token_level) = unsigned_div_rem(tokenId.low, 100);
-
-    with_attr error_message("You already minted with this domain") {
-        let (is_blacklisted) = _blacklisted.read(hashed_domain, token_level);
-        assert is_blacklisted = 0;
-    }
-
     with_attr error_message("You don't own a domain or a subdomain, you cannot mint an NFT") {
         assert_not_zero(domain_len);
     }
 
-    _assert_token_level(caller, domain_len, domain, token_level);
+    let (hashed_domain) = _hash_domain(domain_len, domain);
+    let (_, local token_level) = uint256_unsigned_div_rem(tokenId, Uint256(100, 0));
+    let token_level_felt = _uint256_to_felt(token_level);
+
+    with_attr error_message("You already minted with this domain") {
+        let (is_blacklisted) = _blacklisted.read(hashed_domain, token_level_felt);
+        assert is_blacklisted = 0;
+    }
+
+    _assert_token_level(caller, domain_len, domain, token_level_felt);
 
     ERC721._mint(caller, tokenId);
-    _blacklisted.write(hashed_domain, token_level, 1);
+    _blacklisted.write(hashed_domain, token_level_felt, 1);
 
     return ();
 }
@@ -211,7 +212,7 @@ func _assert_token_level{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_c
 
     if (token_level == 1) {
         with_attr error_message("You don't own a subdomain, you cannot mint an NFT of level 1") {
-            assert is_le(1, domain_len) = TRUE;
+            assert_not_zero(domain_len);
         }
         return ();
     }
@@ -231,7 +232,7 @@ func _assert_token_level{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_c
         let (expiry) = Naming.domain_to_expiry(contract, domain_len, domain);
         let (block_timestamp) = get_block_timestamp();
         with_attr error_message("Your domain expiry is less than 3 years, you cannot mint an NFT of level 3") {
-            assert is_le(_min_expiry, expiry) = TRUE;
+            assert_le(_min_expiry, expiry);
         }
         return ();
     }
@@ -247,6 +248,13 @@ func _hash_domain{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_pt
         return (hash,);
     }
     return (domain[0],);
+}
+
+func _uint256_to_felt{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    val: Uint256
+) -> felt {
+    assert_lt_felt(val.high, 2 ** 123);
+    return val.high * (2 ** 128) + val.low;
 }
 
 //
