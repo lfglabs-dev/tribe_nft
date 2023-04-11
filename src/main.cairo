@@ -5,7 +5,11 @@
 from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.signature import verify_ecdsa_signature
-from starkware.starknet.common.syscalls import get_caller_address
+from starkware.starknet.common.syscalls import get_caller_address, get_block_timestamp
+from starkware.cairo.common.math import assert_not_zero, assert_le, assert_lt_felt
+from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.uint256 import uint256_unsigned_div_rem
+from starkware.cairo.common.bool import FALSE
 
 from openzeppelin.access.ownable.library import Ownable
 from openzeppelin.introspection.erc165.library import ERC165
@@ -14,19 +18,26 @@ from openzeppelin.token.erc721.library import ERC721
 from openzeppelin.upgrades.library import Proxy
 
 from src.token_uri import append_number_ascii, set_uri_base, read_uri_base
+from src.interface.naming import Naming
+
 //
 // Constructor
 //
 
 @external
 func initializer{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    proxy_admin: felt, whitelisting_key: felt, uri_base_len: felt, uri_base: felt*
+    proxy_admin: felt, 
+    uri_base_len: felt, 
+    uri_base: felt*, 
+    naming_address: felt,
+    expiry: felt
 ) {
     Ownable.initializer(proxy_admin);
     Proxy.initializer(proxy_admin);
     ERC721.initializer('Stark Tribe NFT', 'TRB');
     set_uri_base(uri_base_len, uri_base);
-    _whitelisting_key.write(whitelisting_key);
+    naming_contract.write(naming_address);
+    min_expiry.write(expiry);
 
     return ();
 }
@@ -36,11 +47,15 @@ func initializer{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr
 //
 
 @storage_var
-func _whitelisting_key() -> (whitelisting_key: felt) {
+func _blacklisted(domain: felt, level: felt) -> (is_blacklisted: felt) {
 }
 
 @storage_var
-func _blacklisted_whitelist(domain: felt) -> (is_blacklisted: felt) {
+func naming_contract() -> (address: felt) {
+}
+
+@storage_var
+func min_expiry() -> (timestamp: felt) {
 }
 
 //
@@ -99,7 +114,8 @@ func tokenURI{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     alloc_locals;
 
     let (arr_len, arr) = read_uri_base(0);
-    let (size) = append_number_ascii(tokenId, arr + arr_len);
+    let (_, token_level) = uint256_unsigned_div_rem(tokenId, Uint256(100, 0));
+    let (size) = append_number_ascii(token_level, arr + arr_len);
 
     return (arr_len + size, arr);
 }
@@ -156,25 +172,93 @@ func safeTransferFrom{pedersen_ptr: HashBuiltin*, syscall_ptr: felt*, range_chec
 
 @external
 func mint{pedersen_ptr: HashBuiltin*, syscall_ptr: felt*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*}(
-    tokenId: Uint256, whitelist_sig: (felt, felt), domain: felt
+    tokenId: Uint256,
 ) {
+    alloc_locals;
     Pausable.assert_not_paused();
 
-    let (whitelisting_key) = _whitelisting_key.read();
-    with_attr error_message("Your whitelist is not valid") {
-        verify_ecdsa_signature(domain, whitelisting_key, whitelist_sig[0], whitelist_sig[1]);
+    let (contract) = naming_contract.read();
+    let (local caller) = get_caller_address();
+
+    let (domain_len, domain) = Naming.address_to_domain(contract, caller);
+    with_attr error_message("You don't own a domain or a subdomain, you cannot mint an NFT") {
+        assert_not_zero(domain_len);
     }
 
-    with_attr error_message("Your already minted with this domain") {
-        let (is_blacklisted) = _blacklisted_whitelist.read(domain);
+    let (hashed_domain) = _hash_domain(domain_len, domain);
+    let (_, local token_level) = uint256_unsigned_div_rem(tokenId, Uint256(100, 0));
+    let token_level_felt = _uint256_to_felt(token_level);
+
+    with_attr error_message("You already minted with this domain") {
+        let (is_blacklisted) = _blacklisted.read(hashed_domain, token_level_felt);
         assert is_blacklisted = 0;
     }
 
-    let (caller) = get_caller_address();
+    _assert_token_level(caller, domain_len, domain, token_level_felt);
+
     ERC721._mint(caller, tokenId);
-    _blacklisted_whitelist.write(domain, 1);
+    _blacklisted.write(hashed_domain, token_level_felt, 1);
 
     return ();
+}
+
+func _assert_token_level{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    caller: felt, 
+    domain_len: felt, 
+    domain: felt*, 
+    token_level: felt
+) {
+    alloc_locals;
+    let (contract) = naming_contract.read();
+
+    if (token_level == 1) {
+        with_attr error_message("You don't own a subdomain, you cannot mint an NFT of level 1") {
+            assert_not_zero(domain_len);
+        }
+        return ();
+    }
+
+    if (token_level == 2) {
+        with_attr error_message("You don't own a root domain, you cannot mint an NFT of level 2") {
+            assert domain_len = 1;
+        }
+        return ();
+    }
+
+    if (token_level == 3) {
+        with_attr error_message("You don't own a root domain, you cannot mint an NFT of level 3") {
+            assert domain_len = 1;
+        }
+        let (_min_expiry) = min_expiry.read();
+        let (expiry) = Naming.domain_to_expiry(contract, domain_len, domain);
+        let (block_timestamp) = get_block_timestamp();
+        with_attr error_message("Your domain expiry is less than 3 years, you cannot mint an NFT of level 3") {
+            assert_le(_min_expiry, expiry);
+        }
+        return ();
+    }
+    return ();
+}
+
+func _hash_domain{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    domain_len: felt, domain: felt*
+) -> (hashed_domain: felt) {
+    alloc_locals;
+    if (domain_len == 0) {
+        return (FALSE,);
+    }
+    tempvar new_len = domain_len - 1;
+    let x = domain[new_len];
+    let (y) = _hash_domain(new_len, domain);
+    let (hashed_domain) = hash2{hash_ptr=pedersen_ptr}(x, y);
+    return (hashed_domain,);
+}
+
+func _uint256_to_felt{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    val: Uint256
+) -> felt {
+    assert_lt_felt(val.high, 2 ** 123);
+    return val.high * (2 ** 128) + val.low;
 }
 
 //
