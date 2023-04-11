@@ -9,6 +9,7 @@ from starkware.starknet.common.syscalls import get_caller_address, get_block_tim
 from starkware.cairo.common.math import assert_not_zero, assert_le, assert_lt_felt
 from starkware.cairo.common.hash import hash2
 from starkware.cairo.common.uint256 import uint256_unsigned_div_rem
+from starkware.cairo.common.bool import FALSE
 
 from openzeppelin.access.ownable.library import Ownable
 from openzeppelin.introspection.erc165.library import ERC165
@@ -239,15 +240,18 @@ func _assert_token_level{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_c
     return ();
 }
 
-
 func _hash_domain{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     domain_len: felt, domain: felt*
-) -> (hash: felt){
-    if (domain_len == 2){
-        let (hash) = hash2{hash_ptr=pedersen_ptr}(domain[0], domain[1]);
-        return (hash,);
+) -> (hashed_domain: felt) {
+    alloc_locals;
+    if (domain_len == 0) {
+        return (FALSE,);
     }
-    return (domain[0],);
+    tempvar new_len = domain_len - 1;
+    let x = domain[new_len];
+    let (y) = _hash_domain(new_len, domain);
+    let (hashed_domain) = hash2{hash_ptr=pedersen_ptr}(x, y);
+    return (hashed_domain,);
 }
 
 func _uint256_to_felt{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
