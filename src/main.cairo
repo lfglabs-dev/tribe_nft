@@ -13,7 +13,6 @@ from starkware.cairo.common.bool import FALSE
 
 from openzeppelin.access.ownable.library import Ownable
 from openzeppelin.introspection.erc165.library import ERC165
-from openzeppelin.security.pausable.library import Pausable
 from openzeppelin.token.erc721.library import ERC721
 from openzeppelin.upgrades.library import Proxy
 
@@ -26,15 +25,11 @@ from src.interface.naming import Naming
 
 @external
 func initializer{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    proxy_admin: felt, 
-    uri_base_len: felt, 
-    uri_base: felt*, 
-    naming_address: felt,
-    expiry: felt
+    proxy_admin: felt, uri_base_len: felt, uri_base: felt*, naming_address: felt, expiry: felt
 ) {
     Ownable.initializer(proxy_admin);
     Proxy.initializer(proxy_admin);
-    ERC721.initializer('Stark Tribe NFT', 'TRB');
+    ERC721.initializer('Starkfighter Quest', 'SFQ');
     set_uri_base(uri_base_len, uri_base);
     naming_contract.write(naming_address);
     min_expiry.write(expiry);
@@ -125,11 +120,6 @@ func owner{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() ->
     return Ownable.owner();
 }
 
-@view
-func paused{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (paused: felt) {
-    return Pausable.is_paused();
-}
-
 //
 // Externals
 //
@@ -138,7 +128,6 @@ func paused{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -
 func approve{pedersen_ptr: HashBuiltin*, syscall_ptr: felt*, range_check_ptr}(
     to: felt, tokenId: Uint256
 ) {
-    Pausable.assert_not_paused();
     ERC721.approve(to, tokenId);
     return ();
 }
@@ -147,7 +136,6 @@ func approve{pedersen_ptr: HashBuiltin*, syscall_ptr: felt*, range_check_ptr}(
 func setApprovalForAll{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     operator: felt, approved: felt
 ) {
-    Pausable.assert_not_paused();
     ERC721.set_approval_for_all(operator, approved);
     return ();
 }
@@ -156,7 +144,6 @@ func setApprovalForAll{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_che
 func transferFrom{pedersen_ptr: HashBuiltin*, syscall_ptr: felt*, range_check_ptr}(
     from_: felt, to: felt, tokenId: Uint256
 ) {
-    Pausable.assert_not_paused();
     ERC721.transfer_from(from_, to, tokenId);
     return ();
 }
@@ -165,17 +152,15 @@ func transferFrom{pedersen_ptr: HashBuiltin*, syscall_ptr: felt*, range_check_pt
 func safeTransferFrom{pedersen_ptr: HashBuiltin*, syscall_ptr: felt*, range_check_ptr}(
     from_: felt, to: felt, tokenId: Uint256, data_len: felt, data: felt*
 ) {
-    Pausable.assert_not_paused();
     ERC721.safe_transfer_from(from_, to, tokenId, data_len, data);
     return ();
 }
 
 @external
-func mint{pedersen_ptr: HashBuiltin*, syscall_ptr: felt*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*}(
-    tokenId: Uint256,
-) {
+func mint{
+    pedersen_ptr: HashBuiltin*, syscall_ptr: felt*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*
+}(tokenId: Uint256) {
     alloc_locals;
-    Pausable.assert_not_paused();
 
     let (contract) = naming_contract.read();
     let (local caller) = get_caller_address();
@@ -203,10 +188,7 @@ func mint{pedersen_ptr: HashBuiltin*, syscall_ptr: felt*, range_check_ptr, ecdsa
 }
 
 func _assert_token_level{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    caller: felt, 
-    domain_len: felt, 
-    domain: felt*, 
-    token_level: felt
+    caller: felt, domain_len: felt, domain: felt*, token_level: felt
 ) {
     alloc_locals;
     let (contract) = naming_contract.read();
@@ -232,7 +214,8 @@ func _assert_token_level{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_c
         let (_min_expiry) = min_expiry.read();
         let (expiry) = Naming.domain_to_expiry(contract, domain_len, domain);
         let (block_timestamp) = get_block_timestamp();
-        with_attr error_message("Your domain expiry is less than 3 years, you cannot mint an NFT of level 3") {
+        with_attr error_message(
+                "Your domain expiry is less than 3 years, you cannot mint an NFT of level 3") {
             assert_le(_min_expiry, expiry);
         }
         return ();
@@ -293,19 +276,5 @@ func transferOwnership{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_che
 @external
 func renounceOwnership{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() {
     Ownable.renounce_ownership();
-    return ();
-}
-
-@external
-func pause{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() {
-    Ownable.assert_only_owner();
-    Pausable._pause();
-    return ();
-}
-
-@external
-func unpause{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() {
-    Ownable.assert_only_owner();
-    Pausable._unpause();
     return ();
 }
