@@ -11,20 +11,23 @@ import sys
 argv = sys.argv
 
 deployer_account_addr = (
-    0x072D4F3FA4661228ed0c9872007fc7e12a581E000FAd7b8f3e3e5bF9E6133207
+    0x048F24D0D0618FA31813DB91A45D8BE6C50749E5E19EC699092CE29ABE809294
 )
-deployer_account_private_key = int(argv[1]) 
-admin = 0x072D4F3FA4661228ed0c9872007fc7e12a581E000FAd7b8f3e3e5bF9E6133207
-whitelist_key = 799085134889162279411547463466380106946633091380230638211634583888488020853 ## Your public whitelist key
-token_uri_base = "https://www.starknet.id/api/tribe/"
+deployer_account_private_key = int(argv[1])
+admin = 0x048F24D0D0618FA31813DB91A45D8BE6C50749E5E19EC699092CE29ABE809294
+# starkpath_public_key, here pub key of private key = 1
+starkpath_public_key = (
+    874739451078007766457464989774322083649278607533249481151382481072868806602
+)
+token_uri_base = "https://starknet.quest/nfts/quest_name?level="
 # MAINNET: https://alpha-mainnet.starknet.io/
 # TESTNET: https://alpha4.starknet.io/
 # TESTNET2: https://alpha4-2.starknet.io/
 network_base_url = "https://alpha4.starknet.io/"
 chainid: StarknetChainId = StarknetChainId.TESTNET
 max_fee = int(1e16)
-# deployer_address=0x072D4F3FA4661228ed0c9872007fc7e12a581E000FAd7b8f3e3e5bF9E6133207
 deployer = Deployer()
+
 
 async def main():
     client: GatewayClient = GatewayClient(
@@ -68,7 +71,12 @@ async def main():
         calldata={
             "implementation_hash": impl_contract_class_hash,
             "selector": get_selector_from_name("initializer"),
-            "calldata": [admin, whitelist_key, len(token_uri_base), *map(ord, token_uri_base)],
+            "calldata": [
+                admin,
+                len(token_uri_base),
+                *map(ord, token_uri_base),
+                starkpath_public_key,
+            ],
         },
     )
 
