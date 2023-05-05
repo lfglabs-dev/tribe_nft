@@ -25,7 +25,7 @@ token_uri_base = "https://goerli.starknet.quest/api/quests/starkfighter/uri?leve
 # TESTNET2: https://alpha4-2.starknet.io/
 network_base_url = "https://alpha4.starknet.io/"
 chainid: StarknetChainId = StarknetChainId.TESTNET
-max_fee = int(1e16)
+max_fee = int(1e15)
 deployer = Deployer()
 
 
