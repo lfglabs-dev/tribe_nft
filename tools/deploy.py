@@ -17,9 +17,9 @@ deployer_account_private_key = int(argv[1])
 admin = 0x048F24D0D0618FA31813DB91A45D8BE6C50749E5E19EC699092CE29ABE809294
 # starkpath_public_key, here pub key of private key = 1
 starkpath_public_key = (
-    874739451078007766457464989774322083649278607533249481151382481072868806602
+    700643851346402816804472395908209287091992718724213663534740619177753103074
 )
-token_uri_base = "https://starknet.quest/nfts/quest_name?level="
+token_uri_base = "https://goerli.starknet.quest/api/quests/starkfighter/uri?level="
 # MAINNET: https://alpha-mainnet.starknet.io/
 # TESTNET: https://alpha4.starknet.io/
 # TESTNET2: https://alpha4-2.starknet.io/
