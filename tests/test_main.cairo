@@ -34,7 +34,6 @@ func test_mint{
     %{
         from starkware.crypto.signature.signature import private_to_stark_key, pedersen_hash, sign
         ids.pub_key = private_to_stark_key(1)
-        print(ids.pub_key)
         stop_prank_callable = start_prank(123)
         hashed = pedersen_hash(pedersen_hash(pedersen_hash(pedersen_hash(1, 0), 1), 1), 123)
         sig = sign(hashed, 1)
