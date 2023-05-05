@@ -80,7 +80,7 @@ async def main():
         },
     )
 
-    resp = await account.execute(deploy_call, max_fee=int(1e16))
+    resp = await account.execute(deploy_call, max_fee=max_fee)
     print("deployment txhash:", hex(resp.transaction_hash))
     print("proxied contract address:", hex(address))
 
