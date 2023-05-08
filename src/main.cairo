@@ -31,10 +31,10 @@ struct Task {
 
 @external
 func initializer{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    proxy_admin: felt, uri_base_len: felt, uri_base: felt*, starkpath_public_key
+    proxy_admin: felt, uri_base_len: felt, uri_base: felt*, starkpath_public_key, full_name, short_name
 ) {
     Proxy.initializer(proxy_admin);
-    ERC721.initializer('Example Quest', 'QEXP');
+    ERC721.initializer(full_name, short_name);
     _starkpath_public_key.write(starkpath_public_key);
     set_uri_base(uri_base_len, uri_base);
     return ();

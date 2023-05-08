@@ -27,7 +27,8 @@ network_base_url = "https://alpha4.starknet.io/"
 chainid: StarknetChainId = StarknetChainId.TESTNET
 max_fee = int(1e18)
 deployer = Deployer()
-
+full_name = 'Example Quest'
+short_name = 'QEXP'
 
 async def main():
     client: GatewayClient = GatewayClient(
@@ -76,6 +77,8 @@ async def main():
                 len(token_uri_base),
                 *map(ord, token_uri_base),
                 starkpath_public_key,
+                full_name,
+                short_name,
             ],
         },
     )
