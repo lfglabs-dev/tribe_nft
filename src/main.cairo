@@ -16,7 +16,7 @@ from openzeppelin.introspection.erc165.library import ERC165
 from openzeppelin.token.erc721.library import ERC721
 from openzeppelin.upgrades.library import Proxy
 
-from src.token_uri import append_number_ascii, set_uri_base, read_uri_base
+from src.token_uri import append_number_ascii, set_array, read_array, uri_base
 from src.interface.naming import Naming
 
 struct Task {
@@ -31,12 +31,12 @@ struct Task {
 
 @external
 func initializer{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    proxy_admin: felt, uri_base_len: felt, uri_base: felt*, starkpath_public_key, full_name, short_name
+    proxy_admin: felt, uri_base_arr_len: felt, uri_base_arr: felt*, starkpath_public_key, full_name, short_name
 ) {
     Proxy.initializer(proxy_admin);
     ERC721.initializer(full_name, short_name);
     _starkpath_public_key.write(starkpath_public_key);
-    set_uri_base(uri_base_len, uri_base);
+    set_array(uri_base.addr, uri_base_arr_len, uri_base_arr);
     return ();
 }
 
@@ -107,7 +107,7 @@ func tokenURI{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
 ) -> (tokenURI_len: felt, tokenURI: felt*) {
     alloc_locals;
 
-    let (arr_len, arr) = read_uri_base(0);
+    let (arr_len, arr) = read_array(uri_base.addr, 0);
     let (_, token_level) = uint256_unsigned_div_rem(tokenId, Uint256(100, 0));
     let (size) = append_number_ascii(token_level, arr + arr_len);
 
@@ -222,6 +222,6 @@ func setTokenURI{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr
     arr_len: felt, arr: felt*
 ) {
     Proxy.assert_only_admin();
-    set_uri_base(arr_len, arr);
+    set_array(uri_base.addr, arr_len, arr);
     return ();
 }
