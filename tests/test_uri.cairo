@@ -5,7 +5,7 @@ from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.math import assert_lt_felt
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.bool import TRUE, FALSE
-from src.token_uri import _compute_addr, set_array, read_array
+from src.uri import _compute_addr, set_array, read_array
 from src.main import tokenURI, setTokenURI
 
 @storage_var
