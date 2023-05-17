@@ -19,7 +19,8 @@ admin = 0x048F24D0D0618FA31813DB91A45D8BE6C50749E5E19EC699092CE29ABE809294
 starkpath_public_key = (
     700643851346402816804472395908209287091992718724213663534740619177753103074
 )
-token_uri_base = "https://goerli.starknet.quest/api/quests/starkfighter/uri?level="
+token_uri_base = "https://api.goerli.starknet.quest/quests/uri?level="
+contract_uri = "https://api.goerli.starknet.quest/quests/contract_uri"
 # MAINNET: https://alpha-mainnet.starknet.io/
 # TESTNET: https://alpha4.starknet.io/
 # TESTNET2: https://alpha4-2.starknet.io/
@@ -76,6 +77,8 @@ async def main():
                 admin,
                 len(token_uri_base),
                 *map(ord, token_uri_base),
+                len(contract_uri),
+                *map(ord, contract_uri),
                 starkpath_public_key,
                 full_name,
                 short_name,
