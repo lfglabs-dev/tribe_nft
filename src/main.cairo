@@ -34,8 +34,8 @@ func initializer{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr
     proxy_admin: felt,
     token_uri_base_arr_len: felt,
     token_uri_base_arr: felt*,
-    contract_uri_len: felt,
-    contract_uri: felt*,
+    contract_uri_arr_len: felt,
+    contract_uri_arr: felt*,
     starkpath_public_key,
     full_name,
     short_name,
@@ -44,7 +44,7 @@ func initializer{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr
     ERC721.initializer(full_name, short_name);
     _starkpath_public_key.write(starkpath_public_key);
     set_array(uri_base.addr, token_uri_base_arr_len, token_uri_base_arr);
-    set_array(contract_uri.addr, contract_uri_len, contract_uri);
+    set_array(contract_uri.addr, contract_uri_arr_len, contract_uri_arr);
     return ();
 }
 
@@ -122,7 +122,9 @@ func tokenURI{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     return (arr_len + size, arr);
 }
 
-func contractURI() -> (contractURI_len: felt, contractURI: felt*) {
+func contractURI{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (
+    contractURI_len: felt, contractURI: felt*
+) {
     let (arr_len, arr) = read_array(contract_uri.addr, 0);
     return (arr_len, arr);
 }
