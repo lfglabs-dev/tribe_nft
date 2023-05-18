@@ -122,6 +122,7 @@ func tokenURI{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     return (arr_len + size, arr);
 }
 
+@view
 func contractURI{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (
     contractURI_len: felt, contractURI: felt*
 ) {
