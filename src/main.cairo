@@ -131,6 +131,12 @@ func contractURI{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr
 }
 
 @view
+func owner{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (owner: felt) {
+    let (admin) = Proxy.get_admin();
+    return (admin,);
+}
+
+@view
 func get_tasks_status{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     tasks_len, tasks: Task*
 ) -> (status_len: felt, status: felt*) {
