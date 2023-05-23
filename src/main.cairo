@@ -245,6 +245,7 @@ func setTokenURI{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr
 ) {
     Proxy.assert_only_admin();
     set_array(uri_base.addr, arr_len, arr);
+    uri_base.write(arr_len, 0);
     return ();
 }
 
@@ -254,5 +255,6 @@ func setContractURI{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_
 ) {
     Proxy.assert_only_admin();
     set_array(contract_uri.addr, arr_len, arr);
+    contract_uri.write(arr_len, 0);
     return ();
 }
