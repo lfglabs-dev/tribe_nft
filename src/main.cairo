@@ -258,3 +258,12 @@ func setContractURI{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_
     contract_uri.write(arr_len, 0);
     return ();
 }
+
+@external
+func setContractName{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    full_name: felt, short_name: felt
+) {
+    Proxy.assert_only_admin();
+    ERC721.initializer(full_name, short_name);
+    return ();
+}
