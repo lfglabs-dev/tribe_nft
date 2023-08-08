@@ -1,4 +1,4 @@
-#[derive(Serde, Copy, Drop, starknet::storage)]
+#[derive(Serde, Copy, Drop, Store)]
 struct Task {
     quest_id: felt252,
     task_id: felt252,
@@ -26,19 +26,20 @@ mod QuestsNftContract {
     use integer::{u256_safe_divmod, u256_as_non_zero};
     use ecdsa::check_ecdsa_signature;
     use starknet::StorageBaseAddress;
-
-    use debug::PrintTrait;
+    use starknet::class_hash::ClassHash;
 
     use super::Task;
     use quests_nft_contract::interface::uri::IURI;
     use quests_nft_contract::interface::nft_contract::IQuestsNftContract;
     use super::{URI_BASE_ADDR, CONTRACT_URI_ADDR};
     use quests_nft_contract::utils::append_number_ascii;
+    use quests_nft_contract::upgrades::upgradeable::Upgradeable;
 
     #[storage]
     struct Storage {
         _starkpath_public_key: felt252,
         _completed_tasks: LegacyMap<(felt252, felt252, ContractAddress), bool>,
+        _admin: ContractAddress,
         // URI
         uri_base: LegacyMap<felt252, felt252>,
         contract_uri: LegacyMap<felt252, felt252>,
@@ -47,7 +48,7 @@ mod QuestsNftContract {
     #[constructor]
     fn constructor(
         ref self: ContractState,
-        proxy_admin: ContractAddress,
+        admin: ContractAddress,
         token_uri_base_arr: Array::<felt252>,
         contract_uri_arr: Array::<felt252>,
         starkpath_public_key: felt252,
@@ -56,7 +57,7 @@ mod QuestsNftContract {
     ) {
         self
             .initializer(
-                proxy_admin,
+                admin,
                 token_uri_base_arr,
                 contract_uri_arr,
                 starkpath_public_key,
@@ -123,6 +124,10 @@ mod QuestsNftContract {
 
         fn contractURI(self: @ContractState) -> Array<felt252> {
             self.read_array(CONTRACT_URI_ADDR, 0)
+        }
+
+        fn owner(self: @ContractState) -> starknet::ContractAddress {
+            self._admin.read()
         }
 
         fn get_tasks_status(self: @ContractState, tasks: Array<Task>) -> Array<bool> {
@@ -223,20 +228,48 @@ mod QuestsNftContract {
             self._completed_tasks.write((quest_id, task_id, caller), true);
         }
 
+        //
+        // Admin
+        //
+
         fn setTokenURI(ref self: ContractState, arr: Array<felt252>) {
-            // assert admin 
+            self._check_admin();
             self.set_array(URI_BASE_ADDR, arr.span());
         }
 
         fn setContractURI(ref self: ContractState, arr: Array<felt252>) {
-            // assert admin 
+            self._check_admin();
             self.set_array(CONTRACT_URI_ADDR, arr.span());
         }
 
         fn setContractName(ref self: ContractState, full_name: felt252, short_name: felt252) {
-            // assert admin 
+            self._check_admin();
             let mut unsafe_state = ERC721::unsafe_new_contract_state();
             ERC721::InternalImpl::initializer(ref unsafe_state, full_name, short_name);
+        }
+
+        fn set_admin(ref self: ContractState, new_admin: ContractAddress) {
+            self._check_admin();
+            self._admin.write(new_admin);
+        }
+
+        fn upgrade(ref self: ContractState, impl_hash: ClassHash) {
+            self._check_admin();
+            let mut unsafe_state = Upgradeable::unsafe_new_contract_state();
+            Upgradeable::InternalImpl::_upgrade(ref unsafe_state, impl_hash);
+        }
+
+        fn upgrade_and_call(
+            ref self: ContractState,
+            impl_hash: ClassHash,
+            selector: felt252,
+            calldata: Array<felt252>
+        ) {
+            self._check_admin();
+            let mut unsafe_state = Upgradeable::unsafe_new_contract_state();
+            Upgradeable::InternalImpl::_upgrade_and_call(
+                ref unsafe_state, impl_hash, selector, calldata.span()
+            );
         }
     }
 
@@ -311,18 +344,25 @@ mod QuestsNftContract {
     impl InternalImpl of InternalTrait {
         fn initializer(
             ref self: ContractState,
-            proxy_admin: ContractAddress,
+            admin: ContractAddress,
             token_uri_base: Array::<felt252>,
             contract_uri_arr: Array<felt252>,
             starkpath_public_key: felt252,
             full_name: felt252,
             short_name: felt252
         ) {
+            self._admin.write(admin);
             let mut unsafe_state = ERC721::unsafe_new_contract_state();
             ERC721::InternalImpl::initializer(ref unsafe_state, full_name, short_name);
             self._starkpath_public_key.write(starkpath_public_key);
             self.set_array(URI_BASE_ADDR, token_uri_base.span());
             self.set_array(CONTRACT_URI_ADDR, contract_uri_arr.span());
+        }
+
+        fn _check_admin(self: @ContractState) {
+            let caller = get_caller_address();
+            let admin = self._admin.read();
+            assert(caller == admin, 'caller is not admin');
         }
     }
 

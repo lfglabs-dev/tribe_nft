@@ -13,7 +13,7 @@ trait IQuestsNftContract<TContractState> {
     ) -> bool;
     fn tokenURI(self: @TContractState, token_id: u256) -> Array<felt252>;
     fn contractURI(self: @TContractState) -> Array<felt252>;
-    // fn owner(self: @TContractState) -> starknet::ContractAddress;
+    fn owner(self: @TContractState) -> starknet::ContractAddress;
     fn get_tasks_status(self: @TContractState, tasks: Array<Task>) -> Array<bool>;
     // Externals
     fn approve(ref self: TContractState, to: starknet::ContractAddress, token_id: u256);
@@ -43,4 +43,12 @@ trait IQuestsNftContract<TContractState> {
     fn setTokenURI(ref self: TContractState, arr: Array<felt252>);
     fn setContractURI(ref self: TContractState, arr: Array<felt252>);
     fn setContractName(ref self: TContractState, full_name: felt252, short_name: felt252);
+    fn set_admin(ref self: TContractState, new_admin: starknet::ContractAddress);
+    fn upgrade(ref self: TContractState, impl_hash: starknet::class_hash::ClassHash);
+    fn upgrade_and_call(
+        ref self: TContractState,
+        impl_hash: starknet::class_hash::ClassHash,
+        selector: felt252,
+        calldata: Array<felt252>
+    );
 }
